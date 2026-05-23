@@ -1,123 +1,152 @@
 
 import requests
-import json
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# Shared session: connection pooling + automatic retries with exponential backoff.
+# Retries cover transient network errors and the GW2 API's rate-limit (429) and
+# 5xx responses. Retry-After headers are respected automatically.
+_RETRY = Retry(
+    total=5,
+    connect=5,
+    read=5,
+    status=5,
+    backoff_factor=0.5,                          # 0.5s, 1s, 2s, 4s, 8s
+    status_forcelist=(429, 500, 502, 503, 504),
+    allowed_methods=frozenset(["GET"]),
+    respect_retry_after_header=True,
+    raise_on_status=False,
+)
+_SESSION = requests.Session()
+_ADAPTER = HTTPAdapter(max_retries=_RETRY, pool_connections=10, pool_maxsize=20)
+_SESSION.mount("https://", _ADAPTER)
+_SESSION.mount("http://", _ADAPTER)
+_SESSION.headers.update({"User-Agent": "gw2-api-py/1.0"})
+
+_TIMEOUT = (10, 30)          # (connect, read) seconds
+_GW2_MAX_IDS_PER_REQUEST = 200   # hard cap enforced by the GW2 API
+
+
+def _request(url, params=None):
+    """Perform a GET that is robust against transient failures.
+
+    Returns parsed JSON on success. Raises requests.HTTPError on a final
+    non-recoverable HTTP status, requests.RequestException on a network
+    failure that survived all retries, or ValueError if the body is not JSON.
+    """
+    resp = _SESSION.get(url, params=params, timeout=_TIMEOUT)
+    # 206 = partial content (some ids in a batch were unknown) -> still valid JSON.
+    if resp.status_code >= 400:
+        resp.raise_for_status()
+    return resp.json()
+
+
+def _chunked(seq, size):
+    for i in range(0, len(seq), size):
+        yield seq[i:i + size]
+
 
 class _authMethodes:
+    @staticmethod
     def get(_apikey, _url_list) -> dict:
         url = '/'.join(str(x) for x in _url_list)
-        auth = "?access_token={}".format(_apikey)
-        #print("API Request: {}".format(url + auth))
-        try:
-            return json.loads(requests.get(url + auth).text)
-        except:
-            return json.loads(requests.get(url + auth).text)
+        return _request(url, params={"access_token": _apikey})
+
+    @staticmethod
     def id(_apikey, _url_list, id: int) -> dict:
-        url = '/'.join(str(x) for x in _url_list) + "?id={}".format(str(id))
-        auth = "&access_token={}".format(_apikey)
-        #print("API Request: {}".format(url + auth))
-        try:
-            return json.loads(requests.get(url + auth).text)
-        except:
-            return json.loads(requests.get(url + auth).text)
-    def ids(_apikey, _url_list, ids: list[int]) -> list[dict]:
-        url = '/'.join(str(x) for x in _url_list) + "?ids={}".format(','.join([str(i) for i in ids]))
-        auth = "&access_token={}".format(_apikey)
-        #print("API Request: {}".format(url + auth))
-        try:
-            return json.loads(requests.get(url + auth).text)
-        except:
-            return json.loads(requests.get(url + auth).text)
-    def all(_apikey, _url_list) -> dict:
-        url = '/'.join(str(x) for x in _url_list) + "?ids=all"
-        auth = "&access_token={}".format(_apikey)
-        #print("API Request: {}".format(url + auth))
-        try:
-            return json.loads(requests.get(url + auth).text)
-        except:
-            return json.loads(requests.get(url + auth).text)
+        url = '/'.join(str(x) for x in _url_list)
+        return _request(url, params={"id": id, "access_token": _apikey})
 
+    @staticmethod
+    def ids(_apikey, _url_list, ids: list) -> list:
+        url = '/'.join(str(x) for x in _url_list)
+        results = []
+        for chunk in _chunked(list(ids), _GW2_MAX_IDS_PER_REQUEST):
+            params = {"ids": ",".join(str(i) for i in chunk), "access_token": _apikey}
+            data = _request(url, params=params)
+            if isinstance(data, list):
+                results.extend(data)
+            else:
+                results.append(data)
+        return results
 
-
-
+    @staticmethod
+    def all(_apikey, _url_list) -> list:
+        url = '/'.join(str(x) for x in _url_list)
+        return _request(url, params={"ids": "all", "access_token": _apikey})
 
 
 class _publicMethodes:
-     def get(_url_list):
+    @staticmethod
+    def get(_url_list):
         url = '/'.join(str(x) for x in _url_list)
-        #print("API Request: {}".format(url))
-        try:
-            return json.loads(requests.get(url).text)
-        except:
-            return json.loads(requests.get(url).text)
-     def id(_url_list, id):
-        url = '/'.join(str(x) for x in _url_list) + "?id={}".format(str(id))
-        #print("API Request: {}".format(url))
-        try:
-            return json.loads(requests.get(url).text)
-        except:
-            return json.loads(requests.get(url).text)
-     def ids(_url_list, ids: list):
-        url = '/'.join(str(x) for x in _url_list) + "?ids={}".format(','.join([str(i) for i in ids]))
-        #print("API Request: {}".format(url))
-        try:
-            return json.loads(requests.get(url).text)
-        except:
-            return json.loads(requests.get(url).text)
-     def all(_url_list):
-        url = '/'.join(str(x) for x in _url_list) + "?ids=all"
-        #print("API Request: {}".format(url))
-        try:
-            return json.loads(requests.get(url).text)
-        except:
-            return json.loads(requests.get(url).text)
-        
+        return _request(url)
 
+    @staticmethod
+    def id(_url_list, id):
+        url = '/'.join(str(x) for x in _url_list)
+        return _request(url, params={"id": id})
+
+    @staticmethod
+    def ids(_url_list, ids: list):
+        url = '/'.join(str(x) for x in _url_list)
+        results = []
+        for chunk in _chunked(list(ids), _GW2_MAX_IDS_PER_REQUEST):
+            data = _request(url, params={"ids": ",".join(str(i) for i in chunk)})
+            if isinstance(data, list):
+                results.extend(data)
+            else:
+                results.append(data)
+        return results
+
+    @staticmethod
+    def all(_url_list):
+        url = '/'.join(str(x) for x in _url_list)
+        return _request(url, params={"ids": "all"})
 
 
 class _publicInfoMethodes:
-     def get(_url_list) -> str:
+    @staticmethod
+    def get(_url_list):
         url = '/'.join(str(x) for x in _url_list)
-        #print("API Request: {}".format(url))
+        resp = _SESSION.get(url, timeout=_TIMEOUT)
+        resp.raise_for_status()
         try:
-            return json.loads(requests.get(url).text)
-        except:
-            return requests.get(url).text
-    
+            return resp.json()
+        except ValueError:
+            return resp.text
+
+
 class _authInfoMethodes:
-     def get(_apikey, _url_list) -> dict:
+    @staticmethod
+    def get(_apikey, _url_list):
         url = '/'.join(str(x) for x in _url_list)
-        auth = "?access_token={}".format(_apikey)
+        resp = _SESSION.get(url, params={"access_token": _apikey}, timeout=_TIMEOUT)
+        resp.raise_for_status()
         try:
-            return json.loads(requests.get(url + auth).text)
-        except:
-            return requests.get(url + auth).text
+            return resp.json()
+        except ValueError:
+            return resp.text
 
 
 
 
 class API:
     def endpoints():
-        def Classmethodes(Object):
-            return [method for method in dir(Object) if method.startswith('__') is False]
-        Object =API
-        endpoints = []
-        for methode1 in Classmethodes(Object):
-            endpoints.append(Object.__name__ + "." + methode1)
-            for methode2 in Classmethodes(eval(Object.__name__ + "." + methode1)):
-                endpoints.append(Object.__name__ + "." + methode1 + "." + methode2)
-                for methode3 in Classmethodes(eval(Object.__name__ + "." + methode1 + "." + methode2)):
-                    endpoints.append(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3)
-                    for methode4 in Classmethodes(eval(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3)):
-                        endpoints.append(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3 + "." + methode4)
-                        for methode5 in Classmethodes(eval(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3 + "." + methode4)):
-                            endpoints.append(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3 + "." + methode4 + "." + methode5)
-                            for methode6 in Classmethodes(eval(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3 + "." + methode4 + "." + methode5)):
-                                endpoints.append(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3 + "." + methode4 + "." + methode5 + "." + methode6)
-                                for methode7 in Classmethodes(eval(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3 + "." + methode4 + "." + methode5 + "." + methode6)):
-                                    endpoints.append(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3 + "." + methode4 + "." + methode5 + "." + methode6 + "." + methode7)
-                                    for methode8 in Classmethodes(eval(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3 + "." + methode4 + "." + methode5 + "." + methode6 + "." + methode7)):
-                                        endpoints.append(Object.__name__ + "." + methode1 + "." + methode2 + "." + methode3 + "." + methode4 + "." + methode5 + "." + methode6 + "." + methode7 + "." + methode8)
-        return list(endpoints)
+        def walk(obj, path):
+            results = []
+            for name in dir(obj):
+                if name.startswith("_"):
+                    continue
+                child = getattr(obj, name, None)
+                if child is None:
+                    continue
+                child_path = path + "." + name
+                results.append(child_path)
+                if isinstance(child, type):
+                    results.extend(walk(child, child_path))
+            return results
+        return walk(API, API.__name__)
 
     def __init__(self,apikey: str = None):
         self.apikey = apikey
