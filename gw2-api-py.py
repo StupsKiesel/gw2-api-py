@@ -991,7 +991,7 @@ class API:
                 def id(self, id: int = None) -> dict:
                     return _publicMethodes.id(self._url_list, id) 
                 def ids(self, ids: list[int] = None) -> list[dict]:
-                     return _publicMethodes.ids(self._url_list, ids)
+                    return _publicMethodes.ids(self._url_list, ids)
                 def all(self) -> list[dict]:
                     return _publicMethodes.all(self._url_list)
                 class regions:
@@ -1012,7 +1012,7 @@ class API:
                     def id(self, id: int = None) -> dict:
                         return _publicMethodes.id(self._url_list, id) 
                     def ids(self, ids: list[int] = None) -> list[dict]:
-                         return _publicMethodes.ids(self._url_list, ids)
+                        return _publicMethodes.ids(self._url_list, ids)
                     def all(self) -> list[dict]:
                         return _publicMethodes.all(self._url_list)
                     class maps:
@@ -1036,7 +1036,7 @@ class API:
                         def id(self, id: int = None) -> dict:
                             return _publicMethodes.id(self._url_list, id) 
                         def ids(self, ids: list[int] = None) -> list[dict]:
-                             return _publicMethodes.ids(self._url_list, ids)
+                            return _publicMethodes.ids(self._url_list, ids)
                         def all(self) -> list[dict]:
                             return _publicMethodes.all(self._url_list)
                         class sectors:
@@ -1058,7 +1058,7 @@ class API:
                             def id(self, id: int = None) -> dict:
                                 return _publicMethodes.id(self._url_list, id) 
                             def ids(self, ids: list[int] = None) -> list[dict]:
-                                 return _publicMethodes.ids(self._url_list, ids)
+                                return _publicMethodes.ids(self._url_list, ids)
                             def all(self) -> list[dict]:
                                 return _publicMethodes.all(self._url_list)
                         class pois:
@@ -1080,7 +1080,7 @@ class API:
                             def id(self, id: int = None) -> dict:
                                 return _publicMethodes.id(self._url_list, id) 
                             def ids(self, ids: list[int] = None) -> list[dict]:
-                                 return _publicMethodes.ids(self._url_list, ids)
+                                return _publicMethodes.ids(self._url_list, ids)
                             def all(self) -> list[dict]:
                                 return _publicMethodes.all(self._url_list)
                         class tasks:
@@ -1102,7 +1102,7 @@ class API:
                             def id(self, id: int = None) -> dict:
                                 return _publicMethodes.id(self._url_list, id) 
                             def ids(self, ids: list[int] = None) -> list[dict]:
-                                 return _publicMethodes.ids(self._url_list, ids)
+                                return _publicMethodes.ids(self._url_list, ids)
                             def all(self) -> list[dict]:
                                 return _publicMethodes.all(self._url_list)
         class createsubtoken:
