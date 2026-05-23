@@ -1,7 +1,7 @@
 # gw2-api-py
 
 A small, dependency-light Python wrapper around the
-[Guild Wars 2 official API (v2)](https://wiki.guildwars2.com/wiki/API:Main).
+[Guild Wars 2 official API (v2)](https://wiki.guildwars2.com/wiki/API).
 Endpoints are exposed as a navigable object tree, so you can autocomplete your
 way to the data instead of memorising URLs.
 
