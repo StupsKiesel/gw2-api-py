@@ -34,7 +34,7 @@ print(client.account.bank())                # bank slots for the supplied key
 ## Installation
 
 ```cmd
-git clone https://github.com/<you>/gw2-api-py.git
+git clone https://github.com/StupsKiesel/gw2-api-py.git
 cd gw2-api-py
 py -3 -m venv .venv
 .venv\Scripts\activate
